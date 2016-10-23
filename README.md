@@ -7,6 +7,8 @@ The API is inspired by [Q promises](https://github.com/kriskowal/q).
 A promise represents an asynchronous task. By chaining other tasks and event handlers they help creating much cleaner
 and maintainable code as when using completion handlers.
 
+Promise4Swift uses **Swift 3**. Still using Swift 2? Check out [Release 1](https://github.com/junghans-schneider/Promise4Swift/releases/tag/1).
+
 
 How to use Promise4Swift
 ------------------------
