@@ -9,7 +9,7 @@
 import Foundation
 
 private enum PromiseState {
-    case Pending, Succeed, Failed, Cancelled
+    case pending, succeed, failed, cancelled
 }
 
 private class WeakCancellable {
@@ -21,7 +21,7 @@ private class WeakCancellable {
 
 private protocol Cancellable: AnyObject {
     var isFinished: Bool { get }
-    func cancel(wholeChain wholeChain: Bool) -> Bool
+    @discardableResult func cancel(wholeChain: Bool) -> Bool
 }
 
 
@@ -39,10 +39,10 @@ private protocol Cancellable: AnyObject {
 
     - Author: Til Schneider <github@murfman.de>
 */
-public class Deferred<ValueType> {
+open class Deferred<ValueType> {
 
     /// The corresponding promise.
-    public var promise = Promise<ValueType>()
+    open var promise = Promise<ValueType>()
 
 
     /**
@@ -50,7 +50,7 @@ public class Deferred<ValueType> {
 
         - Parameter value: The value to use for finishing the promise.
     */
-    public func resolve(value: ValueType) {
+    open func resolve(_ value: ValueType) {
         promise.resolve(value)
     }
 
@@ -60,7 +60,7 @@ public class Deferred<ValueType> {
         - Parameter nestedPromise: The promise to use for finishing the corresponding promise: The corresponding promise finishes whenever the nested promise
           finishes using the same result.
     */
-    public func resolve(nestedPromise: Promise<ValueType>) {
+    open func resolve(_ nestedPromise: Promise<ValueType>) {
         promise.resolve(nestedPromise)
     }
 
@@ -69,7 +69,7 @@ public class Deferred<ValueType> {
 
         - Parameter error: The error to use for finishing the promise.
     */
-    public func reject(error: Any) {
+    open func reject(_ error: Any) {
         promise.reject(error)
     }
 
@@ -80,7 +80,7 @@ public class Deferred<ValueType> {
 
 
 /// The error handler to call if a promise fails without having an error handler.
-public var PromiseFallbackErrorHandler: ((error: Any) -> Void)? = nil
+public var PromiseFallbackErrorHandler: ((_ error: Any) -> Void)? = nil
 
 
 /**
@@ -123,40 +123,40 @@ public var PromiseFallbackErrorHandler: ((error: Any) -> Void)? = nil
 
     - Author: Til Schneider <github@murfman.de>
 */
-public class Promise<ValueType>: Cancellable {
+open class Promise<ValueType>: Cancellable {
 
-    public typealias ValueHandler = (value: ValueType) -> Void
-    public typealias ErrorHandler = (error: Any) -> Void
+    public typealias ValueHandler = (_ value: ValueType) -> Void
+    public typealias ErrorHandler = (_ error: Any) -> Void
     public typealias SimpleHandler = () -> Void
 
 
-    private var state: PromiseState = .Pending
+    fileprivate var mState: PromiseState = .pending
 
     /// Whether the promise has finished (so it's either successfull, failed or cancelled).
-    public var isFinished: Bool {
+    open var isFinished: Bool {
         get {
-            return state == .Succeed || state == .Failed || state == .Cancelled
+            return mState == .succeed || mState == .failed || mState == .cancelled
         }
     }
 
     /// Whether the promise has finished successfully.
-    public var isSuccessfull: Bool {
+    open var isSuccessfull: Bool {
         get {
-            return state == .Succeed
+            return mState == .succeed
         }
     }
 
     /// Whether the promise has finished with an error.
-    public var isFailed: Bool {
+    open var isFailed: Bool {
         get {
-            return state == .Failed
+            return mState == .failed
         }
     }
 
     /// Whether the promise was cancelled (before it has finished).
-    public var isCancelled: Bool {
+    open var isCancelled: Bool {
         get {
-            return state == .Cancelled
+            return mState == .cancelled
         }
     }
 
@@ -165,21 +165,21 @@ public class Promise<ValueType>: Cancellable {
         You should set this to `false` if you share a promise instance for multiple consumers. So it can't be cancelled by one consumer while another consumer
         waits for the result.
     */
-    public var cancellable = true
+    open var cancellable = true
 
-    private var value: ValueType? = nil
-    private var error: Any? = nil
+    fileprivate var mValue: ValueType? = nil
+    fileprivate var mError: Any? = nil
 
-    private var ancestorPromises: [WeakCancellable]? = nil
+    fileprivate var mAncestorPromises: [WeakCancellable]? = nil
 
-    private var handlerQueuesClosed = false
-    private var valueHandlers:   [ValueHandler]? = nil
-    private var errorHandlers:   [ErrorHandler]? = nil
-    private var cancelHandlers:  [SimpleHandler]? = nil
-    private var finallyHandlers: [SimpleHandler]? = nil
+    fileprivate var mHandlerQueuesClosed = false
+    fileprivate var mValueHandlers:   [ValueHandler]? = nil
+    fileprivate var mErrorHandlers:   [ErrorHandler]? = nil
+    fileprivate var mCancelHandlers:  [SimpleHandler]? = nil
+    fileprivate var mFinallyHandlers: [SimpleHandler]? = nil
 
 
-    private init() {
+    fileprivate init() {
     }
 
     /**
@@ -198,10 +198,10 @@ public class Promise<ValueType>: Cancellable {
         Chains a promise to this promise.
 
         - Parameter onValue: The closure to call after this promise has a value. The closure gets the value of this promise and a `Deferred` for resolving
-            the chained promise.
+          the chained promise.
         - Returns: The chained promise for the closure's result.
     */
-    public func then<ChildValueType>(onValue: (value: ValueType, deferred: Deferred<ChildValueType>) -> Void) -> Promise<ChildValueType> {
+    open func then<ChildValueType>(_ onValue: @escaping (_ value: ValueType, _ deferred: Deferred<ChildValueType>) -> Void) -> Promise<ChildValueType> {
         let wrapperHandler = WrapperHandler<ValueType, ChildValueType>(nestedOnValue: onValue)
         let childPromise = wrapperHandler.deferred.promise
         childPromise.addAncestor(self)
@@ -216,10 +216,10 @@ public class Promise<ValueType>: Cancellable {
 
         - Parameter resultType: The type of the chained promise's value (for setting an explicite type).
         - Parameter onValue: The closure to call after this promise has a value. The closure gets the value of this promise and a `Deferred` for resolving
-            the chained promise.
+          the chained promise.
         - Returns: The chained promise for the closure's result.
     */
-    public func then<ChildValueType>(resultType resultType: ChildValueType.Type, onValue: (value: ValueType, deferred: Deferred<ChildValueType>) -> Void)
+    open func then<ChildValueType>(resultType: ChildValueType.Type, onValue: @escaping (_ value: ValueType, _ deferred: Deferred<ChildValueType>) -> Void)
         -> Promise<ChildValueType>
     {
         return then(onValue)
@@ -229,12 +229,12 @@ public class Promise<ValueType>: Cancellable {
         Chains a promise to this promise.
 
         - Parameter onValue: The closure to call after this promise has a value. The closure gets the value and returns a promise which will be used for
-            resolving the chained promise.
+          resolving the chained promise.
         - Returns: The chained promise for the closure's result.
     */
-    public func then<ChildValueType>(onValue: (value: ValueType) -> Promise<ChildValueType>) -> Promise<ChildValueType> {
+    open func then<ChildValueType>(_ onValue: @escaping (_ value: ValueType) -> Promise<ChildValueType>) -> Promise<ChildValueType> {
         return then({ (value, deferred) -> Void in
-            let nestedPromise = onValue(value: value)
+            let nestedPromise = onValue(value)
             deferred.resolve(nestedPromise)
         })
     }
@@ -246,7 +246,7 @@ public class Promise<ValueType>: Cancellable {
         - Parameter onValue: The success handler
         - Returns: `self` (to use for method chaining)
     */
-    public func onValue(onValue: ValueHandler) -> Promise<ValueType> {
+    @discardableResult open func onValue(_ onValue: @escaping ValueHandler) -> Promise<ValueType> {
         handle(onValue: onValue, ensureAsyncCalls: true)
         return self
     }
@@ -258,7 +258,7 @@ public class Promise<ValueType>: Cancellable {
         - Parameter onError: The error handler
         - Returns: `self` (to use for method chaining)
     */
-    public func onError(onError: ErrorHandler) -> Promise<ValueType> {
+    @discardableResult open func onError(_ onError: @escaping ErrorHandler) -> Promise<ValueType> {
         handle(onError: onError, ensureAsyncCalls: true)
         return self
     }
@@ -270,7 +270,7 @@ public class Promise<ValueType>: Cancellable {
         - Parameter onCancel: The cancel handler
         - Returns: `self` (to use for method chaining)
     */
-    public func onCancel(onCancel: SimpleHandler) -> Promise {
+    @discardableResult open func onCancel(_ onCancel: @escaping SimpleHandler) -> Promise {
         handle(onCancel: onCancel, ensureAsyncCalls: true)
         return self
     }
@@ -282,35 +282,35 @@ public class Promise<ValueType>: Cancellable {
         - Parameter onFinally: The finally handler
         - Returns: `self` (to use for method chaining)
     */
-    public func onFinally(onFinally: SimpleHandler) -> Promise {
+    @discardableResult open func onFinally(_ onFinally: @escaping SimpleHandler) -> Promise {
         handle(onFinally: onFinally, ensureAsyncCalls: true)
         return self
     }
 
-    private func handle(onValue onValue: ValueHandler? = nil, onError: ErrorHandler? = nil, onCancel: SimpleHandler? = nil,
+    fileprivate func handle(onValue: ValueHandler? = nil, onError: ErrorHandler? = nil, onCancel: SimpleHandler? = nil,
         onFinally: SimpleHandler? = nil, ensureAsyncCalls: Bool)
     {
-        if handlerQueuesClosed {
+        if mHandlerQueuesClosed {
             if ensureAsyncCalls {
                 PromiseUtil.scheduleTimer() { () in
                     self.handle(onValue: onValue, onError: onError, onCancel: onCancel, ensureAsyncCalls: false)
                 }
             } else {
-                switch state {
-                case .Succeed:
+                switch mState {
+                case .succeed:
                     if let onValue = onValue {
-                        onValue(value: value!)
+                        onValue(mValue!)
                     }
-                case .Failed:
+                case .failed:
                     if let onError = onError {
-                        onError(error: error!)
+                        onError(error: mError!)
                     }
-                case .Cancelled:
+                case .cancelled:
                     if let onCancel = onCancel {
                         onCancel()
                     }
                 default:
-                    print("WARNING: Expected finished state, not \(state)")
+                    print("WARNING: Expected finished state, not \(mState)")
                     return
                 }
 
@@ -320,31 +320,31 @@ public class Promise<ValueType>: Cancellable {
             }
         } else {
             if let onValue = onValue {
-                if self.valueHandlers == nil {
-                    self.valueHandlers = [ onValue ]
+                if self.mValueHandlers == nil {
+                    self.mValueHandlers = [ onValue ]
                 } else {
-                    self.valueHandlers!.append(onValue)
+                    self.mValueHandlers!.append(onValue)
                 }
             }
             if let onError = onError {
-                if self.errorHandlers == nil {
-                    self.errorHandlers = [ onError ]
+                if self.mErrorHandlers == nil {
+                    self.mErrorHandlers = [ onError ]
                 } else {
-                    self.errorHandlers!.append(onError)
+                    self.mErrorHandlers!.append(onError)
                 }
             }
             if let onCancel = onCancel {
-                if self.cancelHandlers == nil {
-                    self.cancelHandlers = [ onCancel ]
+                if self.mCancelHandlers == nil {
+                    self.mCancelHandlers = [ onCancel ]
                 } else {
-                    self.cancelHandlers!.append(onCancel)
+                    self.mCancelHandlers!.append(onCancel)
                 }
             }
             if let onFinally = onFinally {
-                if self.finallyHandlers == nil {
-                    self.finallyHandlers = [ onFinally ]
+                if self.mFinallyHandlers == nil {
+                    self.mFinallyHandlers = [ onFinally ]
                 } else {
-                    self.finallyHandlers!.append(onFinally)
+                    self.mFinallyHandlers!.append(onFinally)
                 }
             }
         }
@@ -356,17 +356,17 @@ public class Promise<ValueType>: Cancellable {
         - Parameter wholeChain: If `true` all parent promises will be cancelled as well
         - Returns: Whether the promise could be cancelled (= whether `cancellable` is `true` and it the promise hasn't finished before)
     */
-    public func cancel(wholeChain wholeChain: Bool = false) -> Bool {
+    @discardableResult open func cancel(wholeChain: Bool = false) -> Bool {
         if isCancelled {
             return true
         } else if !cancellable || isFinished {
             return false
         } else {
             // TODO (maybe): Don't cancel promises having other uncancelled child promises.
-            state = .Cancelled
+            mState = .cancelled
 
             if wholeChain {
-                if let ancestorPromises = self.ancestorPromises {
+                if let ancestorPromises = self.mAncestorPromises {
                     for weakPromise in ancestorPromises {
                         if let promise = weakPromise.value {
                             promise.cancel(wholeChain: true)
@@ -374,7 +374,7 @@ public class Promise<ValueType>: Cancellable {
                     }
                 }
             }
-            self.ancestorPromises = nil
+            self.mAncestorPromises = nil
 
             fireFinished();
 
@@ -382,30 +382,30 @@ public class Promise<ValueType>: Cancellable {
         }
     }
 
-    private func addAncestor(ancestor: Cancellable) {
+    fileprivate func addAncestor(_ ancestor: Cancellable) {
         if ancestor.isFinished {
             return
         }
 
         let weakAncestor = WeakCancellable(value: ancestor)
-        if self.ancestorPromises == nil {
-            self.ancestorPromises = [ weakAncestor ]
+        if self.mAncestorPromises == nil {
+            self.mAncestorPromises = [ weakAncestor ]
         } else {
-            self.ancestorPromises!.append(weakAncestor)
+            self.mAncestorPromises!.append(weakAncestor)
         }
     }
 
-    private func resolve(value: ValueType) {
+    fileprivate func resolve(_ value: ValueType) {
         if isFinished {
             return
         }
 
-        self.value = value
-        state = .Succeed
+        self.mValue = value
+        mState = .succeed
         fireFinished()
     }
 
-    private func resolve(nestedPromise: Promise<ValueType>) {
+    fileprivate func resolve(_ nestedPromise: Promise<ValueType>) {
         if isFinished {
             return
         }
@@ -424,29 +424,29 @@ public class Promise<ValueType>: Cancellable {
             ensureAsyncCalls: false)
     }
 
-    private func reject(error: Any) {
+    fileprivate func reject(_ error: Any) {
         if isFinished {
             print("ERROR: Caught error after promise was finished: \(error)")
         } else {
-            self.error = error
-            state = .Failed
+            self.mError = error
+            mState = .failed
             fireFinished()
         }
     }
 
-    private func fireFinished(retryAsyncAllowed retryAsyncAllowed: Bool = true) {
-        if !NSThread.isMainThread() {
+    fileprivate func fireFinished(retryAsyncAllowed: Bool = true) {
+        if !Thread.isMainThread {
             fatalError("Promise was finished outside the main thread")
         }
         if !isFinished {
             fatalError("fireFinished was called on a non-finished promise")
         }
-        if handlerQueuesClosed {
+        if mHandlerQueuesClosed {
             fatalError("fireFinished was called after the handler queues were already closed")
         }
 
         if retryAsyncAllowed {
-            let hasHandlers = (valueHandlers != nil) || (errorHandlers != nil) || (cancelHandlers != nil) || (finallyHandlers != nil)
+            let hasHandlers = (mValueHandlers != nil) || (mErrorHandlers != nil) || (mCancelHandlers != nil) || (mFinallyHandlers != nil)
             if !hasHandlers {
                 // There were no handlers added yet - maybe this promise was resolved synchronously
                 // -> Try again asynchronously
@@ -467,46 +467,46 @@ public class Promise<ValueType>: Cancellable {
 
         PromiseUtil.onPromiseHandlerFlushStart()
 
-        handlerQueuesClosed = true
+        mHandlerQueuesClosed = true
 
-        switch state {
-        case .Succeed:
-            if let valueHandlers = self.valueHandlers {
+        switch mState {
+        case .succeed:
+            if let valueHandlers = self.mValueHandlers {
                 for onValue in valueHandlers {
-                    onValue(value: value!)
+                    onValue(mValue!)
                 }
             }
-        case .Failed:
-            if let errorHandlers = self.errorHandlers {
+        case .failed:
+            if let errorHandlers = self.mErrorHandlers {
                 for onError in errorHandlers {
-                    onError(error: error!)
+                    onError(error: mError!)
                 }
             } else if let fallbackHandler = PromiseFallbackErrorHandler {
-                fallbackHandler(error: error!)
+                fallbackHandler(error: mError!)
             } else {
-                print("ERROR: Promise caused error: \(error!)")
+                print("ERROR: Promise caused error: \(mError!)")
             }
-        case .Cancelled:
-            if let cancelHandlers = self.cancelHandlers {
+        case .cancelled:
+            if let cancelHandlers = self.mCancelHandlers {
                 for onCancel in cancelHandlers {
                     onCancel()
                 }
             }
         default:
-            print("ERROR: Expected finished state, not \(state)")
+            print("ERROR: Expected finished state, not \(mState)")
         }
 
-        if let finallyHandlers = self.finallyHandlers {
+        if let finallyHandlers = self.mFinallyHandlers {
             for onFinally in finallyHandlers {
                 onFinally()
             }
         }
 
-        self.ancestorPromises = nil
-        self.valueHandlers    = nil
-        self.errorHandlers    = nil
-        self.cancelHandlers   = nil
-        self.finallyHandlers  = nil
+        self.mAncestorPromises = nil
+        self.mValueHandlers    = nil
+        self.mErrorHandlers    = nil
+        self.mCancelHandlers   = nil
+        self.mFinallyHandlers  = nil
 
         PromiseUtil.onPromiseHandlerFlushEnd()
     }
@@ -518,13 +518,13 @@ public class Promise<ValueType>: Cancellable {
 
     - Author: Til Schneider <github@murfman.de>
 */
-public class PromiseUtil {
+open class PromiseUtil {
 
-    private static var isPromiseHandlerFlushRunning = false
-    private static var pendingPromiseHandlerFlushHandlers: [() -> Void] = []
+    fileprivate static var isPromiseHandlerFlushRunning = false
+    fileprivate static var pendingPromiseHandlerFlushHandlers: [() -> Void] = []
 
 
-    private static func onPromiseHandlerFlushStart() {
+    fileprivate static func onPromiseHandlerFlushStart() {
         if isPromiseHandlerFlushRunning {
             print("WARNING: onPromiseHandlerFlushStart called while flush is already running")
         }
@@ -532,7 +532,7 @@ public class PromiseUtil {
         isPromiseHandlerFlushRunning = true
     }
 
-    private static func onPromiseHandlerFlushEnd() {
+    fileprivate static func onPromiseHandlerFlushEnd() {
         if !isPromiseHandlerFlushRunning {
             print("WARNING: onPromiseHandlerFlushEnd called, but flush wasn't running")
         }
@@ -549,7 +549,7 @@ public class PromiseUtil {
         }
     }
 
-    private static func executeOutsidePromiseHandlerFlush(handler: () -> Void) {
+    fileprivate static func executeOutsidePromiseHandlerFlush(_ handler: @escaping () -> Void) {
         if !isPromiseHandlerFlushRunning {
             handler()
         } else {
@@ -563,7 +563,7 @@ public class PromiseUtil {
         - Parameter value: The promise's value
         - Returns: A promise which finished with `value`
     */
-    public static func resolvedPromise<ValueType>(value: ValueType) -> Promise<ValueType> {
+    open static func resolvedPromise<ValueType>(_ value: ValueType) -> Promise<ValueType> {
         let promise = Promise<ValueType>()
         promise.resolve(value)
         return promise
@@ -576,7 +576,7 @@ public class PromiseUtil {
         - Parameter valueType: The value type (for setting an explicite type)
         - Returns: A promise which finished with `value`
     */
-    public static func resolvedPromise<ValueType>(value: ValueType, valueType: ValueType.Type) -> Promise<ValueType> {
+    open static func resolvedPromise<ValueType>(_ value: ValueType, valueType: ValueType.Type) -> Promise<ValueType> {
         return resolvedPromise(value)
     }
 
@@ -586,7 +586,7 @@ public class PromiseUtil {
         - Parameter error: The error
         - Returns: A promise which failed with `error`
     */
-    public static func rejectedPromise<ValueType>(error: Any) -> Promise<ValueType> {
+    open static func rejectedPromise<ValueType>(_ error: Any) -> Promise<ValueType> {
         let promise = Promise<ValueType>()
         promise.reject(error)
         return promise
@@ -599,7 +599,7 @@ public class PromiseUtil {
         - Parameter valueType: The value type (for setting an explicite type)
         - Returns: A promise which failed with `error`
     */
-    public static func rejectedPromise<ValueType>(error: Any, valueType: ValueType.Type) -> Promise<ValueType> {
+    open static func rejectedPromise<ValueType>(_ error: Any, valueType: ValueType.Type) -> Promise<ValueType> {
         return rejectedPromise(error)
     }
 
@@ -610,7 +610,7 @@ public class PromiseUtil {
         - Parameter promise2: Promise #2
         - Returns: A promise finishing after all promises have finished. The values of the promises are passed in a tupel.
     */
-    public static func all<Type1, Type2>(promise1: Promise<Type1>, _ promise2: Promise<Type2>) -> Promise<(Type1, Type2)> {
+    open static func all<Type1, Type2>(_ promise1: Promise<Type1>, _ promise2: Promise<Type2>) -> Promise<(Type1, Type2)> {
         // Doesn't work since Xcode 7.3 (see below in class ParallelPromiseGroup)
         //return ParallelPromiseGroup()
         //    .addPromise(promise1)
@@ -667,7 +667,7 @@ public class PromiseUtil {
         - Parameter promise3: Promise #3
         - Returns: A promise finishing after all promises have finished. The values of the promises are passed in a tupel.
     */
-    public static func all<Type1, Type2, Type3>(promise1: Promise<Type1>, _ promise2: Promise<Type2>, _ promise3: Promise<Type3>)
+    open static func all<Type1, Type2, Type3>(_ promise1: Promise<Type1>, _ promise2: Promise<Type2>, _ promise3: Promise<Type3>)
         -> Promise<(Type1, Type2, Type3)>
     {
         // Doesn't work since Xcode 7.3 (see below in class ParallelPromiseGroup)
@@ -742,7 +742,7 @@ public class PromiseUtil {
         - Parameter promise4: Promise #4
         - Returns: A promise finishing after all promises have finished. The values of the promises are passed in a tupel.
     */
-    public static func all<Type1, Type2, Type3, Type4>(promise1: Promise<Type1>, _ promise2: Promise<Type2>, _ promise3: Promise<Type3>,
+    open static func all<Type1, Type2, Type3, Type4>(_ promise1: Promise<Type1>, _ promise2: Promise<Type2>, _ promise3: Promise<Type3>,
         _ promise4: Promise<Type4>) -> Promise<(Type1, Type2, Type3, Type4)>
     {
         // Doesn't work since Xcode 7.3 (see below in class ParallelPromiseGroup)
@@ -832,7 +832,7 @@ public class PromiseUtil {
         - Parameter promise5: Promise #5
         - Returns: A promise finishing after all promises have finished. The values of the promises are passed in a tupel.
     */
-    public static func all<Type1, Type2, Type3, Type4, Type5>(promise1: Promise<Type1>, _ promise2: Promise<Type2>, _ promise3: Promise<Type3>,
+    open static func all<Type1, Type2, Type3, Type4, Type5>(_ promise1: Promise<Type1>, _ promise2: Promise<Type2>, _ promise3: Promise<Type3>,
         _ promise4: Promise<Type4>, _ promise5: Promise<Type5>) -> Promise<(Type1, Type2, Type3, Type4, Type5)>
     {
         // Doesn't work since Xcode 7.3 (see below in class ParallelPromiseGroup)
@@ -926,24 +926,24 @@ public class PromiseUtil {
         return deferred.promise;
     }
 
-    public static func scheduleTimer(interval interval: NSTimeInterval = 0, repeats: Bool = false, handler: () -> Void) -> NSTimer {
-        if !NSThread.isMainThread() {
+    @discardableResult static func scheduleTimer(interval: TimeInterval = 0, repeats: Bool = false, handler: @escaping () -> Void) -> Timer {
+        if !Thread.isMainThread {
             fatalError("scheduleTimer was called outside the main thread")
         }
 
         let wrapper = HandlerWrapper(handler: handler)
-        return NSTimer.scheduledTimerWithTimeInterval(interval, target: wrapper, selector: "callHandler", userInfo: nil, repeats: repeats)
+        return Timer.scheduledTimer(timeInterval: interval, target: wrapper, selector: #selector(HandlerWrapper.callHandler), userInfo: nil, repeats: repeats)
     }
 
 
-    private class HandlerWrapper {
+    fileprivate class HandlerWrapper {
         let handler: () -> Void
 
-        init (handler: () -> Void) {
+        init (handler: @escaping () -> Void) {
             self.handler = handler
         }
 
-        @objc private func callHandler() {
+        @objc fileprivate func callHandler() {
             handler()
         }
     }
@@ -952,27 +952,27 @@ public class PromiseUtil {
 
 private class WrapperHandler<ValueType, ChildValueType> {
 
-    private let nestedOnValue: (value: ValueType, deferred: Deferred<ChildValueType>) -> Void
+    fileprivate let nestedOnValue: (_ value: ValueType, _ deferred: Deferred<ChildValueType>) -> Void
 
     let deferred: Deferred<ChildValueType>
 
 
-    init(nestedOnValue: (value: ValueType, deferred: Deferred<ChildValueType>) -> Void) {
+    init(nestedOnValue: @escaping (_ value: ValueType, _ deferred: Deferred<ChildValueType>) -> Void) {
         self.nestedOnValue = nestedOnValue
         deferred = Deferred<ChildValueType>()
     }
 
-    func onValue(value: ValueType) {
+    func onValue(_ value: ValueType) {
         // This is the then-handler. Then-handlers should be called after all other handlers
         // (because they are automatically at the end of a promise's method chain, since then returns a new promise)
         // -> Call our nestedOnValue after the current promise has finished flushing its handlers
         //    See test: PromiseTest.testSimpleValue
         PromiseUtil.executeOutsidePromiseHandlerFlush {
-            self.nestedOnValue(value: value, deferred: self.deferred)
+            self.nestedOnValue(value, self.deferred)
         }
     }
 
-    func onError(error: Any) {
+    func onError(_ error: Any) {
         deferred.reject(error)
     }
 

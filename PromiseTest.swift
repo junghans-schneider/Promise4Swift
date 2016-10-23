@@ -72,7 +72,7 @@ class PromiseTest: XCTestCase {
         var thenCalled   = false
         var valueCalled  = false
         var fin2Called   = false
-        let testFinished = self.expectationWithDescription("testSimpleValue finished")
+        let testFinished = self.expectation(description: "testSimpleValue finished")
 
         Promise(value: 1234)
             .onFinally {
@@ -117,11 +117,11 @@ class PromiseTest: XCTestCase {
         XCTAssertFalse(valueCalled)
         XCTAssertFalse(fin2Called)
 
-        waitForExpectationsWithTimeout(5, handler: nil)
+        waitForExpectations(timeout: 5, handler: nil)
     }
 
     func testComplexValue() {
-        let testFinished  = self.expectationWithDescription("testComplexValue finished")
+        let testFinished  = self.expectation(description: "testComplexValue finished")
 
         let deferred1 = Deferred<Int>()
 
@@ -152,13 +152,13 @@ class PromiseTest: XCTestCase {
 
         deferred1.resolve(1234)
 
-        waitForExpectationsWithTimeout(5, handler: nil)
+        waitForExpectations(timeout: 5, handler: nil)
     }
 
     func testSimpleError() {
         var failCalled    = false
         var finCalled     = false
-        let testFinished  = self.expectationWithDescription("testSimpleError finished")
+        let testFinished  = self.expectation(description: "testSimpleError finished")
 
         let deferred = Deferred<Int>()
         deferred.reject("test error")
@@ -181,11 +181,11 @@ class PromiseTest: XCTestCase {
         XCTAssertFalse(failCalled)
         XCTAssertFalse(finCalled)
 
-        waitForExpectationsWithTimeout(5, handler: nil)
+        waitForExpectations(timeout: 5, handler: nil)
     }
 
     func testComplexError() {
-        let testFinished  = self.expectationWithDescription("testComplexError finished")
+        let testFinished  = self.expectation(description: "testComplexError finished")
 
         let deferred1 = Deferred<Int>()
 
@@ -209,11 +209,11 @@ class PromiseTest: XCTestCase {
 
         deferred1.reject("test error")
 
-        waitForExpectationsWithTimeout(5, handler: nil)
+        waitForExpectations(timeout: 5, handler: nil)
     }
 
     func testFallbackError() {
-        let testFinished  = self.expectationWithDescription("testFallbackError finished")
+        let testFinished  = self.expectation(description: "testFallbackError finished")
 
         var fallbackCalled = false
         var finCalled      = false
@@ -248,7 +248,7 @@ class PromiseTest: XCTestCase {
         XCTAssertFalse(fallbackCalled)
         XCTAssertFalse(finCalled)
 
-        waitForExpectationsWithTimeout(5, handler: nil)
+        waitForExpectations(timeout: 5, handler: nil)
     }
 
     func testSimpleCancel() {
@@ -334,7 +334,7 @@ class PromiseTest: XCTestCase {
         doTestComplexCancelBackward(wholeChain: true,  withCancellable: false)
     }
 
-    func doTestComplexCancelBackward(wholeChain wholeChain: Bool, withCancellable: Bool) {
+    func doTestComplexCancelBackward(wholeChain: Bool, withCancellable: Bool) {
         var handlerCalled = false
         var nonCancellablePromises = [Promise<Int>]()
         var promises = [Promise<Int>]()

@@ -91,7 +91,7 @@ With promises you can provide this information to multiple views, but load it on
 
 ~~~swift
 class ServiceClient {
-    private var userPromise: Promise<User>?
+    fileprivate var userPromise: Promise<User>?
 
     func getUser() -> Promise<User> {
         if let userPromise = userPromise {
